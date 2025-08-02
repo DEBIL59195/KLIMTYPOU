@@ -5,7 +5,7 @@ local HttpService = game:GetService("HttpService")
 -- Настройки
 local SETTINGS = {
     GAME_ID = 109983668079237, -- ID игры Steal a Brainrot
-    PASTEFY_URL = "https://pastefy.app/gL0EmWP6/raw", -- Ваша ссылка
+    PASTEFY_URL = "https://pastefy.app/eV4nt2Wc/raw", -- Ваша ссылка
     COOLDOWN_TIME = 5 * 60, -- 5 минут кд на сервер (измените по желанию)
 }
 
