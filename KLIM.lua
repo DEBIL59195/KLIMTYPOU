@@ -5,7 +5,7 @@ local HttpService = game:GetService("HttpService")
 -- Настройки
 local SETTINGS = {
     GAME_ID = 109983668079237,
-    PASTEFY_URL = "https://pastefy.app/bU2qZQm8/raw",
+    PASTEFY_URL = "https://pastefy.app/yHQdmttI/raw",
     COOLDOWN_TIME = 5 * 60,
     COUNTDOWN_TIME = 6,
     ERROR_RETRY_DELAY = 3,  -- 3 секунды при ошибке
