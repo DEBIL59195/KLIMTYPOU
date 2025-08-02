@@ -7,7 +7,9 @@ local SETTINGS = {
     GAME_ID = 109983668079237,
     PASTEFY_URL = "https://pastefy.app/bU2qZQm8/raw",
     COOLDOWN_TIME = 5 * 60,
-    COUNTDOWN_TIME = 5
+    COUNTDOWN_TIME = 6,
+    ERROR_RETRY_DELAY = 3,  -- 3 секунды при ошибке
+    SUCCESS_DELAY = 3       -- 6 секунд при успехе
 }
 
 -- Хранилище данных
@@ -71,8 +73,13 @@ local function TryTeleport(target)
             print("⚠ Неизвестная ошибка: "..tostring(err):match("^[^\n]+"))
         end
         BLACKLIST[target] = os.time()
+        print("⏳ Повторная попытка через "..SETTINGS.ERROR_RETRY_DELAY.." сек...")
+        task.wait(SETTINGS.ERROR_RETRY_DELAY)  -- Ожидание 3 секунды при ошибке
         return false
     end
+    
+    print("✅ Успешное подключение! Завершение через "..SETTINGS.SUCCESS_DELAY.." сек...")
+    task.wait(SETTINGS.SUCCESS_DELAY)  -- Ожидание 6 секунд при успехе
     return true
 end
 
@@ -108,10 +115,8 @@ local function TeleportLoop()
             if TryTeleport(target) then
                 print("🚀 Успешное подключение!")
                 break
-            else
-                -- Мгновенный переход к следующему серверу без отсчета
-                task.wait(0.05)
             end
+            -- При ошибке уже есть задержка в TryTeleport
         end
     end
 end
