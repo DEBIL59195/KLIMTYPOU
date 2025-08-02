@@ -7,7 +7,7 @@ local SETTINGS = {
     GAME_ID = 109983668079237,
     PASTEFY_URL = "https://pastefy.app/bU2qZQm8/raw",
     COOLDOWN_TIME = 5 * 60,
-    COUNTDOWN_TIME = 4
+    COUNTDOWN_TIME = 5
 }
 
 -- Хранилище данных
