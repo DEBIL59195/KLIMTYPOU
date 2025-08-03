@@ -1,6 +1,8 @@
 local TeleportService = game:GetService("TeleportService")
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
 
 -- Настройки
 local SETTINGS = {
@@ -16,6 +18,101 @@ local SETTINGS = {
 local SERVER_LIST = {}
 local BLACKLIST = {}
 local SHOW_COUNTDOWN = true
+
+-- Создание GUI
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "TeleportStatusGUI"
+screenGui.Parent = game:GetService("CoreGui")
+
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 250, 0, 120)
+frame.Position = UDim2.new(0.5, -125, 1, -130)
+frame.AnchorPoint = Vector2.new(0.5, 0)
+frame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+frame.BorderSizePixel = 0
+frame.Parent = screenGui
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 8)
+corner.Parent = frame
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 30)
+title.Position = UDim2.new(0, 0, 0, 0)
+title.BackgroundTransparency = 1
+title.Text = "AUTO TELEPORT"
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 18
+title.Parent = frame
+
+local status = Instance.new("TextLabel")
+status.Size = UDim2.new(1, -20, 0, 60)
+status.Position = UDim2.new(0, 10, 0, 35)
+status.BackgroundTransparency = 1
+status.Text = "Загрузка списка серверов..."
+status.TextColor3 = Color3.fromRGB(200, 200, 200)
+status.Font = Enum.Font.Gotham
+status.TextSize = 14
+status.TextWrapped = true
+status.TextXAlignment = Enum.TextXAlignment.Left
+status.TextYAlignment = Enum.TextYAlignment.Top
+status.Parent = frame
+
+local closeButton = Instance.new("TextButton")
+closeButton.Size = UDim2.new(0, 20, 0, 20)
+closeButton.Position = UDim2.new(1, -25, 0, 5)
+closeButton.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+closeButton.BorderSizePixel = 0
+closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeButton.Text = "X"
+closeButton.Font = Enum.Font.GothamBold
+closeButton.TextSize = 14
+closeButton.Parent = frame
+
+local corner2 = Instance.new("UICorner")
+corner2.CornerRadius = UDim.new(0, 4)
+corner2.Parent = closeButton
+
+-- Анимация закрытия
+closeButton.MouseButton1Click:Connect(function()
+    local tween = TweenService:Create(frame, TweenInfo.new(0.3), {Position = UDim2.new(0.5, -125, 1, 130)})
+    tween:Play()
+    tween.Completed:Wait()
+    screenGui:Destroy()
+end)
+
+-- Перетаскивание GUI
+local dragging = false
+local dragStartPos, frameStartPos
+
+frame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStartPos = Vector2.new(input.Position.X, input.Position.Y)
+        frameStartPos = frame.Position
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local delta = Vector2.new(input.Position.X, input.Position.Y) - dragStartPos
+        frame.Position = UDim2.new(frameStartPos.X.Scale, frameStartPos.X.Offset + delta.X, 
+                                  frameStartPos.Y.Scale, frameStartPos.Y.Offset + delta.Y)
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = false
+    end
+end)
+
+-- Обновление статуса в GUI
+local function UpdateStatus(text, color)
+    status.Text = text
+    status.TextColor3 = color or Color3.fromRGB(200, 200, 200)
+end
 
 -- Проверка всех возможных ошибок телепортации
 local function IsTeleportError(err)
@@ -33,7 +130,7 @@ local function LoadServers()
     end)
     
     if not success then 
-        warn("❌ Ошибка загрузки списка серверов: "..tostring(response))
+        UpdateStatus("❌ Ошибка загрузки списка серверов:\n"..tostring(response):sub(1, 100), Color3.fromRGB(255, 100, 100))
         return {}
     end
     
@@ -52,11 +149,13 @@ end
 local function TryTeleport(target)
     if SHOW_COUNTDOWN then
         for i = SETTINGS.COUNTDOWN_TIME, 1, -1 do
-            print("🕒 Подключение через "..i.." сек...")
+            UpdateStatus("🕒 Подключение через "..i.." сек...", Color3.fromRGB(255, 255, 150))
             task.wait(1)
         end
         SHOW_COUNTDOWN = false
     end
+    
+    UpdateStatus("🔗 Подключение к серверу...", Color3.fromRGB(150, 255, 150))
     
     local success, err = pcall(function()
         TeleportService:TeleportToPlaceInstance(
@@ -68,18 +167,18 @@ local function TryTeleport(target)
     
     if not success then
         if IsTeleportError(err) then
-            print("⛔ Ошибка: "..tostring(err):match("^[^\n]+"))
+            UpdateStatus("⛔ Ошибка:\n"..tostring(err):match("^[^\n]+"):sub(1, 100), Color3.fromRGB(255, 100, 100))
         else
-            print("⚠ Неизвестная ошибка: "..tostring(err):match("^[^\n]+"))
+            UpdateStatus("⚠ Неизвестная ошибка:\n"..tostring(err):match("^[^\n]+"):sub(1, 100), Color3.fromRGB(255, 150, 100))
         end
         BLACKLIST[target] = os.time()
-        print("⏳ Повторная попытка через "..SETTINGS.ERROR_RETRY_DELAY.." сек...")
-        task.wait(SETTINGS.ERROR_RETRY_DELAY)  -- Ожидание 3 секунды при ошибке
+        UpdateStatus("⏳ Повтор через "..SETTINGS.ERROR_RETRY_DELAY.." сек...", Color3.fromRGB(255, 200, 100))
+        task.wait(SETTINGS.ERROR_RETRY_DELAY)
         return false
     end
     
-    print("✅ Успешное подключение! Завершение через "..SETTINGS.SUCCESS_DELAY.." сек...")
-    task.wait(SETTINGS.SUCCESS_DELAY)  -- Ожидание 6 секунд при успехе
+    UpdateStatus("✅ Успешное подключение!\nЗавершение через "..SETTINGS.SUCCESS_DELAY.." сек...", Color3.fromRGB(100, 255, 100))
+    task.wait(SETTINGS.SUCCESS_DELAY)
     return true
 end
 
@@ -87,10 +186,10 @@ local function TeleportLoop()
     while true do
         SERVER_LIST = LoadServers()
         if #SERVER_LIST == 0 then
-            warn("⚠ Список серверов пуст. Повторная попытка через 10 сек...")
+            UpdateStatus("⚠ Список серверов пуст\nПовтор через 10 сек...", Color3.fromRGB(255, 200, 100))
             task.wait(10)
         else
-            print("✅ Доступно серверов: "..#SERVER_LIST)
+            UpdateStatus("✅ Доступно серверов: "..#SERVER_LIST, Color3.fromRGB(150, 255, 150))
             break
         end
     end
@@ -104,19 +203,18 @@ local function TeleportLoop()
         end
         
         if #available == 0 then
-            print("⏳ Все серверы на кд. Ожидание "..SETTINGS.COOLDOWN_TIME.." сек...")
+            UpdateStatus("⏳ Все серверы на кд\nОжидание "..SETTINGS.COOLDOWN_TIME.." сек...", Color3.fromRGB(255, 200, 100))
             SHOW_COUNTDOWN = true
             task.wait(SETTINGS.COOLDOWN_TIME)
             SERVER_LIST = LoadServers()
         else
             local target = available[math.random(1, #available)]
-            print("🔍 Попытка подключения к "..target:sub(1, 8).."...")
+            UpdateStatus("🔍 Попытка подключения к:\n"..target:sub(1, 8).."...", Color3.fromRGB(200, 200, 255))
             
             if TryTeleport(target) then
-                print("🚀 Успешное подключение!")
+                UpdateStatus("🚀 Успешное подключение!", Color3.fromRGB(100, 255, 100))
                 break
             end
-            -- При ошибке уже есть задержка в TryTeleport
         end
     end
 end
@@ -125,7 +223,7 @@ end
 while true do
     local success, err = pcall(TeleportLoop)
     if not success then
-        warn("🛑 Критическая ошибка: "..tostring(err))
+        UpdateStatus("🛑 Критическая ошибка:\n"..tostring(err):sub(1, 100), Color3.fromRGB(255, 100, 100))
         SHOW_COUNTDOWN = true
         task.wait(5)
     end
