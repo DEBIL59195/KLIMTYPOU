@@ -28,7 +28,7 @@ titleLabel.Size = UDim2.new(1, 0, 0, 30)
 titleLabel.Position = UDim2.new(0, 0, 0, 0)
 titleLabel.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 titleLabel.BorderSizePixel = 0
-titleLabel.Text = "SERVER HOPPER LOGS"
+titleLabel.Text = "FAST SERVER HOPPER"
 titleLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
 titleLabel.TextScaled = true
 titleLabel.Font = Enum.Font.Code
@@ -108,54 +108,49 @@ local function addLog(message, logType)
     end
 end
 
-addLog("Smart Server Hopper запущен!", "SUCCESS")
-addLog("Account ID: " .. accountId, "INFO")
-addLog("Текущий сервер JobId: " .. currentJobId, "INFO")
+addLog("FAST Server Hopper активирован!", "SUCCESS")
+addLog("Account: " .. accountId, "INFO")
 
-local function getServerList()
-    addLog("Получаем список серверов (лимит 50)...", "INFO")
-    local allServers = {}
-    local cursor = nil
-    
-    for i = 1, 6 do
-        local success, result = pcall(function()
-            local url = "https://games.roblox.com/v1/games/"..placeId.."/servers/Public?sortOrder=Desc&limit=50&excludeFullGames=true"
-            if cursor then
-                url = url .. "&cursor=" .. cursor
-            end
-            local response = game:HttpGet(url)
-            local data = HttpService:JSONDecode(response)
-            return data
-        end)
-        
-        if success and result and result.data then
-            for _, server in pairs(result.data) do
-                table.insert(allServers, server)
-            end
-            cursor = result.nextPageCursor
-            if not cursor or #allServers >= 200 then break end
-            wait(0.3)
-        else
-            addLog("Ошибка получения страницы " .. i, "ERROR")
-            break
-        end
+local serverCache = {}
+local lastCacheTime = 0
+local CACHE_DURATION = 10
+
+local function getFastServerList()
+    local currentTime = tick()
+    if currentTime - lastCacheTime < CACHE_DURATION and #serverCache > 0 then
+        addLog("Используем кешированные серверы", "INFO")
+        return serverCache
     end
     
-    addLog("Получено серверов: " .. #allServers, "SUCCESS")
-    return allServers
+    addLog("Быстрое получение серверов...", "INFO")
+    local startTime = tick()
+    
+    local success, result = pcall(function()
+        local url = "https://games.roblox.com/v1/games/"..placeId.."/servers/Public?sortOrder=Desc&limit=50&excludeFullGames=true"
+        local response = game:HttpGet(url)
+        return HttpService:JSONDecode(response)
+    end)
+    
+    if success and result and result.data then
+        serverCache = result.data
+        lastCacheTime = currentTime
+        local requestTime = math.round((tick() - startTime) * 1000)
+        addLog("Получено " .. #serverCache .. " серверов за " .. requestTime .. "мс", "SUCCESS")
+        return serverCache
+    else
+        addLog("Ошибка API, используем кеш", "ERROR")
+        return serverCache
+    end
 end
 
-local function getOptimalServer()
-    addLog("Поиск оптимального сервера...", "INFO")
-    local serverData = getServerList()
+local function getFastServer()
+    local serverData = getFastServerList()
     if not serverData or #serverData == 0 then
-        addLog("Данные серверов недоступны", "ERROR")
+        addLog("Нет доступных серверов", "ERROR")
         return nil
     end
     
-    local lowFillServers = {}
-    local mediumFillServers = {}
-    local highFillServers = {}
+    local fastServers = {}
     
     for _, server in pairs(serverData) do
         if server.id and 
@@ -166,50 +161,24 @@ local function getOptimalServer()
             local fillPercent = server.playing / server.maxPlayers
             local freeSlots = server.maxPlayers - server.playing
             
-            local serverInfo = {
-                id = server.id,
-                priority = freeSlots + math.random(1, 5),
-                playing = server.playing,
-                maxPlayers = server.maxPlayers,
-                fillPercent = fillPercent
-            }
-            
-            if fillPercent <= 0.4 and freeSlots >= 10 then
-                table.insert(lowFillServers, serverInfo)
-            elseif fillPercent <= 0.7 and freeSlots >= 5 then
-                table.insert(mediumFillServers, serverInfo)
-            elseif fillPercent < 0.95 and freeSlots >= 1 then
-                table.insert(highFillServers, serverInfo)
-            end
-        end
-    end
-    
-    local targetList = {}
-    if #lowFillServers > 0 then
-        targetList = lowFillServers
-        addLog("Используем серверы с низкой заполненностью: " .. #lowFillServers, "SUCCESS")
-    elseif #mediumFillServers > 0 then
-        targetList = mediumFillServers
-        addLog("Используем серверы со средней заполненностью: " .. #mediumFillServers, "WARNING")
-    else
-        targetList = highFillServers
-        addLog("Используем серверы с высокой заполненностью: " .. #highFillServers, "WARNING")
-    end
-    
-    if #targetList == 0 then
-        addLog("Очищаем историю посещений", "WARNING")
-        visitedServers = {}
-        visitedServers[currentJobId] = true
-        
-        for _, server in pairs(serverData) do
-            if server.id and 
-               server.id ~= currentJobId and
-               server.playing > 0 and 
-               server.playing < server.maxPlayers then
-                
-                table.insert(targetList, {
+            if fillPercent <= 0.5 and freeSlots >= 8 then
+                table.insert(fastServers, {
                     id = server.id,
-                    priority = server.maxPlayers - server.playing,
+                    priority = freeSlots * 10,
+                    playing = server.playing,
+                    maxPlayers = server.maxPlayers
+                })
+            elseif fillPercent <= 0.8 and freeSlots >= 3 then
+                table.insert(fastServers, {
+                    id = server.id,
+                    priority = freeSlots * 5,
+                    playing = server.playing,
+                    maxPlayers = server.maxPlayers
+                })
+            elseif freeSlots >= 1 then
+                table.insert(fastServers, {
+                    id = server.id,
+                    priority = freeSlots,
                     playing = server.playing,
                     maxPlayers = server.maxPlayers
                 })
@@ -217,58 +186,63 @@ local function getOptimalServer()
         end
     end
     
-    if #targetList > 0 then
-        table.sort(targetList, function(a, b)
-            return a.priority > b.priority
-        end)
-        
-        local topCount = math.min(8, #targetList)
-        local selectedIndex = math.random(1, topCount)
-        local selectedServer = targetList[selectedIndex]
-        
-        visitedServers[selectedServer.id] = true
-        
-        addLog("Выбран сервер: " .. selectedServer.id, "SUCCESS")
-        addLog("Игроков: " .. selectedServer.playing .. "/" .. selectedServer.maxPlayers, "INFO")
-        addLog("Позиция: " .. selectedIndex .. " из топ-" .. topCount, "INFO")
-        
-        return selectedServer.id
+    if #fastServers == 0 then
+        visitedServers = {}
+        visitedServers[currentJobId] = true
+        addLog("Сброс истории", "WARNING")
+        return getFastServer()
     end
     
-    addLog("Подходящие серверы не найдены", "ERROR")
-    return nil
+    table.sort(fastServers, function(a, b) return a.priority > b.priority end)
+    
+    local topChoice = math.min(5, #fastServers)
+    local selected = fastServers[math.random(1, topChoice)]
+    
+    visitedServers[selected.id] = true
+    addLog("Сервер: " .. selected.id .. " [" .. selected.playing .. "/" .. selected.maxPlayers .. "]", "SUCCESS")
+    
+    return selected.id
 end
 
-local function smartServerHop()
-    addLog("Начинаем умную смену сервера...", "INFO")
-    local serverId = getOptimalServer()
+local function instantHop()
+    local startTime = tick()
+    addLog(">>> БЫСТРЫЙ ХОП НАЧАТ", "INFO")
+    
+    local serverId = getFastServer()
     
     if serverId then
-        addLog("Телепортируемся на сервер: " .. serverId, "SUCCESS")
+        local findTime = math.round((tick() - startTime) * 1000)
+        addLog("Сервер найден за " .. findTime .. "мс", "SUCCESS")
+        addLog(">>> ТЕЛЕПОРТ!", "SUCCESS")
+        
         currentJobId = serverId
-        
-        local teleportDelay = math.random(200, 800) / 1000
-        addLog("Задержка телепортации: " .. teleportDelay .. "с", "INFO")
-        wait(teleportDelay)
-        
         TeleportService:TeleportToPlaceInstance(placeId, serverId, player)
     else
-        addLog("Используем обычную телепортацию", "WARNING")
+        addLog(">>> ОБЫЧНЫЙ ТЕЛЕПОРТ", "WARNING")
         TeleportService:Teleport(placeId, player)
     end
 end
 
+TeleportService.TeleportInitFailed:Connect(function(player, teleportResult, errorMessage)
+    addLog("Телепорт неудачен: " .. tostring(errorMessage), "ERROR")
+    wait(2)
+    addLog(">>> ПОВТОРНАЯ ПОПЫТКА", "WARNING")
+    instantHop()
+end)
+
 spawn(function()
-    local initialDelay = math.random(1, 4)
-    addLog("Начальная задержка: " .. initialDelay .. "с", "INFO")
-    wait(initialDelay)
+    local quickStart = math.random(50, 200) / 1000
+    addLog("Быстрый старт через " .. quickStart .. "с", "INFO")
+    wait(quickStart)
     
     while true do
-        wait(7)
-        addLog("Таймер истек, ищем новый сервер", "INFO")
-        smartServerHop()
+        wait(3.7)
+        addLog(">>> ТАЙМЕР ИСТЕК", "INFO")
+        instantHop()
     end
 end)
 
-addLog("Смена сервера каждые 7 секунд", "INFO")
-addLog("Лимит API: 50 серверов за запрос", "INFO")
+addLog("Переходы каждые 3.7 секунды", "INFO")
+addLog("Кеширование: " .. CACHE_DURATION .. "с", "INFO")
+addLog("Максимум логов: 50", "INFO")
+addLog("Текущий сервер исключен: " .. currentJobId, "INFO")
