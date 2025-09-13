@@ -126,7 +126,7 @@ local function getFastServerList()
     local startTime = tick()
     
     local success, result = pcall(function()
-        local url = "https://games.roblox.com/v1/games/"..placeId.."/servers/Public?sortOrder=Desc&limit=100&excludeFullGames=true"
+        local url = "https://games.roblox.com/v1/games/"..placeId.."/servers/Public?sortOrder=Desc&limit=50&excludeFullGames=true"
         local response = game:HttpGet(url)
         return HttpService:JSONDecode(response)
     end)
