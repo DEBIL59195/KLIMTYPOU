@@ -9,7 +9,7 @@ local SETTINGS = {
     GAME_ID = 109983668079237,
     PASTEFY_URL = "https://raw.githubusercontent.com/DEBIL59195/SERVERLIST/refs/heads/main/SERVERLIST",
     COOLDOWN_TIME = 5 * 60,
-    COUNTDOWN_TIME = 1,
+    COUNTDOWN_TIME = 0,
     ERROR_RETRY_DELAY = 2,  -- 3 секунды при ошибке
     SUCCESS_DELAY = 3       -- 6 секунд при успехе
 }
